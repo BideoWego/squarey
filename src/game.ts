@@ -1,47 +1,91 @@
 import 'phaser';
 
-export default class Demo extends Phaser.Scene
-{
-    constructor ()
-    {
-        super('demo');
+export default class Home extends Phaser.Scene {
+    map;
+    player;
+    floor;
+    positions;
+    cursors;
+    isComplete;
+
+    constructor() {
+        super('home');
+        this.isComplete = false;
     }
 
-    preload ()
-    {
-        this.load.image('logo', 'assets/phaser3-logo.png');
-        this.load.image('libs', 'assets/libs.png');
-        this.load.glsl('bundle', 'assets/plasma-bundle.glsl.js');
-        this.load.glsl('stars', 'assets/starfields.glsl.js');
+    preload() {
+        this.load.tilemapTiledJSON('map', 'assets/hello-tiled.json');
+        this.load.image('floor', 'assets/floor.png');
+        this.load.image('player', 'assets/squarey.png');
     }
 
-    create ()
-    {
-        this.add.shader('RGB Shift Field', 0, 0, 800, 600).setOrigin(0);
+    create() {
+        this.map = this.make.tilemap({ key: 'map', tileWidth: 32, tileHeight: 32 });
+        const tileset = this.map.addTilesetImage('floor', 'floor');
+        this.floor = this.map.createLayer('floor', tileset, 0, 0);
+        this.floor.setCollisionByExclusion(-1, true);
 
-        this.add.shader('Plasma', 0, 412, 800, 172).setOrigin(0);
+        const objLayer = this.map.getObjectLayer('positions');
+        this.positions = objLayer.objects.reduce((hash, position) => {
+            hash[position.name] = position;
+            return hash;
+        }, {});
 
-        this.add.image(400, 300, 'libs');
+        this.player = this.physics.add.sprite(this.positions.startPosition.x, this.positions.startPosition.y, 'player');
+        this.player.setBounce(0.001);
+        this.physics.add.collider(this.player, this.floor);
 
-        const logo = this.add.image(400, 70, 'logo');
+        this.cursors = this.input.keyboard.createCursorKeys();
 
-        this.tweens.add({
-            targets: logo,
-            y: 350,
-            duration: 1500,
-            ease: 'Sine.inOut',
-            yoyo: true,
-            repeat: -1
-        })
+        this.cursors.left.on('down', () => {
+            this.player.body.setVelocityX(-200);
+        });
+
+        this.cursors.right.on('down', () => {
+            this.player.body.setVelocityX(200);
+        });
+
+        this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
+        this.cameras.main.startFollow(this.player);
+        this.cameras.main.setBackgroundColor('#ccccff');
+    }
+
+    update() {
+        if (!this.isComplete &&
+            this.player.x > this.positions.endPosition.x &&
+            this.player.x < this.positions.endPosition.x + this.positions.endPosition.width &&
+            this.player.y > this.positions.endPosition.y &&
+            this.player.y < this.positions.endPosition.y + this.positions.endPosition.height) {
+            this.isComplete = true;
+        }
+
+        if (!this.isComplete) {
+            if (!(this.cursors.left.isDown || this.cursors.right.isDown)) {
+                this.player.body.setVelocityX(0);
+            }
+
+            if ((this.cursors.space.isDown || this.cursors.up.isDown) && this.player.body.onFloor()) {
+                this.player.body.setVelocityY(-350);
+            }
+        } else {
+            console.log('Level complete!');
+        }
     }
 }
 
 const config = {
     type: Phaser.AUTO,
-    backgroundColor: '#125555',
+    backgroundColor: '#000',
     width: 800,
     height: 600,
-    scene: Demo
+    physics: {
+        default: 'arcade',
+        arcade: {
+            gravity: { y: 500 },
+            debug: false
+        }
+    },
+    scene: Home
 };
 
 const game = new Phaser.Game(config);
